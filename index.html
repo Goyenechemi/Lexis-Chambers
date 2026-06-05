@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html class="light" lang="es">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Lexis Chambers - Análisis Estratégico</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-primary-container": "#76849f",
+          "on-primary-fixed": "#0d1c32",
+          "secondary": "#5f5e5e",
+          "on-background": "#191c1d",
+          "background": "#f8f9fa",
+          "surface-container-highest": "#e1e3e4",
+          "error-container": "#ffdad6",
+          "on-tertiary-container": "#a17f3b",
+          "on-primary-fixed-variant": "#39475f",
+          "secondary-fixed-dim": "#c8c6c5",
+          "inverse-surface": "#2e3132",
+          "on-error": "#ffffff",
+          "outline-variant": "#c5c6cd",
+          "surface-container-lowest": "#ffffff",
+          "error": "#ba1a1a",
+          "surface-container-high": "#e7e8e9",
+          "on-secondary": "#ffffff",
+          "on-error-container": "#93000a",
+          "surface": "#f8f9fa",
+          "surface-variant": "#e1e3e4",
+          "on-tertiary-fixed": "#261900",
+          "surface-container": "#edeeef",
+          "inverse-on-surface": "#f0f1f2",
+          "primary": "#000000",
+          "on-tertiary": "#ffffff",
+          "secondary-fixed": "#e5e2e1",
+          "on-secondary-fixed-variant": "#474746",
+          "surface-bright": "#f8f9fa",
+          "on-secondary-fixed": "#1c1b1b",
+          "tertiary-fixed": "#ffdea5",
+          "surface-container-low": "#f3f4f5",
+          "on-surface-variant": "#44474d",
+          "on-secondary-container": "#636262",
+          "tertiary": "#000000",
+          "on-tertiary-fixed-variant": "#5d4201",
+          "surface-tint": "#515f78",
+          "tertiary-fixed-dim": "#e9c176",
+          "on-primary": "#ffffff",
+          "secondary-container": "#e2dfde",
+          "surface-dim": "#d9dadb",
+          "primary-fixed": "#d6e3ff",
+          "on-surface": "#191c1d",
+          "tertiary-container": "#261900",
+          "primary-fixed-dim": "#b9c7e4",
+          "outline": "#75777e",
+          "inverse-primary": "#b9c7e4",
+          "primary-container": "#0d1c32"
+        },
+        borderRadius: {
+          "DEFAULT": "0.125rem",
+          "lg": "0.25rem",
+          "xl": "0.5rem",
+          "full": "0.75rem"
+        },
+        spacing: {
+          "base": "8px",
+          "gutter": "24px",
+          "xs": "4px",
+          "sm": "12px",
+          "xl": "80px",
+          "margin": "32px",
+          "md": "24px",
+          "lg": "48px"
+        },
+        fontFamily: {
+          "body-md": ["Inter"],
+          "headline-sm": ["Playfair Display"],
+          "title-lg": ["Inter"],
+          "headline-md": ["Playfair Display"],
+          "body-lg": ["Inter"],
+          "caption": ["Inter"],
+          "display-lg-mobile": ["Playfair Display"],
+          "label-md": ["Inter"],
+          "display-lg": ["Playfair Display"]
+        },
+        fontSize: {
+          "body-md": ["14px", { lineHeight: "1.6", fontWeight: "400" }],
+          "headline-sm": ["24px", { lineHeight: "1.4", fontWeight: "600" }],
+          "title-lg": ["20px", { lineHeight: "1.5", letterSpacing: "0.01em", fontWeight: "600" }],
+          "headline-md": ["30px", { lineHeight: "1.3", fontWeight: "600" }],
+          "body-lg": ["16px", { lineHeight: "1.6", fontWeight: "400" }],
+          "caption": ["12px", { lineHeight: "1.4", fontWeight: "400" }],
+          "display-lg-mobile": ["32px", { lineHeight: "1.2", letterSpacing: "-0.01em", fontWeight: "700" }],
+          "label-md": ["12px", { lineHeight: "1", letterSpacing: "0.05em", fontWeight: "600" }],
+          "display-lg": ["48px", { lineHeight: "1.2", letterSpacing: "-0.02em", fontWeight: "700" }]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Toggle switch */
+  .toggle-checkbox:checked + .toggle-label { background-color: #000; }
+  .toggle-checkbox { transition: transform 0.2s ease-in-out; }
+
+  /* Upload drag states */
+  .upload-zone.drag-over { border-color: #000 !important; background-color: #f3f4f5; }
+
+  /* Animated progress bar */
+  @keyframes progress-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .progress-pulse { animation: progress-pulse 1.5s ease-in-out infinite; }
+
+  /* Result tabs */
+  .tab-btn.active {
+    border-bottom: 2px solid #000;
+    color: #000;
+    font-weight: 700;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Markdown rendered output */
+  .analysis-body h1 { font-size: 1rem; font-weight: 700; color: #000; margin: 18px 0 6px; font-family: 'Playfair Display', serif; }
+  .analysis-body h2 { font-size: 0.93rem; font-weight: 700; color: #191c1d; margin: 14px 0 5px; border-bottom: 1px solid #e1e3e4; padding-bottom: 4px; }
+  .analysis-body h3 { font-size: 0.87rem; font-weight: 600; color: #39475f; margin: 12px 0 4px; }
+  .analysis-body p { margin: 6px 0; font-size: 0.87rem; color: #191c1d; line-height: 1.65; }
+  .analysis-body ul, .analysis-body ol { padding-left: 18px; margin: 6px 0; }
+  .analysis-body li { font-size: 0.85rem; color: #191c1d; margin: 3px 0; line-height: 1.6; }
+  .analysis-body strong { font-weight: 700; color: #000; }
+  .analysis-body em { font-style: italic; color: #44474d; }
+  .analysis-body hr { border: none; border-top: 1px solid #e1e3e4; margin: 14px 0; }
+  .analysis-body table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.82rem; }
+  .analysis-body th { background: #f3f4f5; font-weight: 600; padding: 7px 10px; border: 1px solid #c5c6cd; text-align: left; }
+  .analysis-body td { padding: 6px 10px; border: 1px solid #e1e3e4; vertical-align: top; }
+  .analysis-body tr:nth-child(even) td { background: #fafafa; }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { animation: spin 0.8s linear infinite; }
+
+  /* Fade-in for results */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.4s ease forwards; }
+
+  /* Toast */
+  #toast { transition: opacity 0.3s ease, transform 0.3s ease; }
+</style>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased overflow-x-hidden min-h-screen flex">
+
+<!-- ===================== SIDEBAR ===================== -->
+<nav class="bg-surface text-primary font-label-md text-label-md h-screen w-64 fixed left-0 top-0 border-r border-outline-variant flat flex flex-col p-sm space-y-base z-50 hidden md:flex">
+  <div class="mb-lg px-xs mt-md">
+    <div class="flex items-center gap-sm mb-sm">
+      <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-on-primary font-headline-sm text-headline-sm">L</div>
+      <div>
+        <h1 class="font-headline-sm text-headline-sm text-primary leading-none">Lexis Chambers</h1>
+        <span class="font-caption text-caption text-on-surface-variant block mt-xs">Legal Intelligence</span>
+      </div>
+    </div>
+    <button onclick="resetForm()" class="w-full bg-primary text-on-primary py-sm px-md rounded mt-md hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-xs">
+      <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+      Nuevo Análisis
+    </button>
+  </div>
+
+  <!-- Recent analyses list -->
+  <div class="flex-1 overflow-y-auto no-scrollbar px-xs">
+    <p class="font-caption text-caption text-on-surface-variant mb-xs px-sm">Recientes</p>
+    <div id="recent-list" class="space-y-xs">
+      <p class="font-caption text-caption text-outline px-sm italic">Sin análisis anteriores</p>
+    </div>
+  </div>
+
+  <div class="mt-auto pt-sm border-t border-outline-variant">
+    <a class="text-on-surface-variant hover:bg-surface-container-high transition-all rounded-lg flex items-center gap-sm p-sm ease-in-out duration-300" href="#">
+      <span class="material-symbols-outlined">contact_support</span>
+      Centro de Ayuda
+    </a>
+  </div>
+</nav>
+
+<!-- ===================== MAIN WRAPPER ===================== -->
+<div class="flex-1 md:ml-64 flex flex-col min-h-screen">
+
+  <!-- TOP NAV -->
+  <header class="bg-surface w-full top-0 sticky z-40 border-b border-outline-variant flex justify-between items-center px-margin py-base max-w-[1280px] mx-auto w-full md:px-lg hidden md:flex">
+    <div class="flex-1"></div>
+    <div class="flex items-center gap-md">
+      <div class="flex items-center gap-sm">
+        <button class="text-secondary hover:text-primary transition-colors cursor-pointer duration-200 p-xs">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+        <button class="text-secondary hover:text-primary transition-colors cursor-pointer duration-200 p-xs">
+          <span class="material-symbols-outlined">help</span>
+        </button>
+      </div>
+      <div class="w-8 h-8 rounded-full bg-surface-variant overflow-hidden border border-outline-variant">
+        <img alt="Profile" class="w-full h-full object-cover"
+          src="https://lh3.googleusercontent.com/aida/AP1WRLuIsyDIOqFCCJSKP6b8Gg2pC2Pl-gTvzkGGf-MEhlUPSHUwRtJphQfpnOwWnSDfOlxJRQzZBhPGi1BDpUopm5qW7ZsERujJmp68iX5RAoQ2pH8s65GyNF8DgRKeRRW1j2zJDxNWIxSCSKuDMjPcELDDiJeKovsLdk-Jty5iNaniH2q690TO0fAtH2doHkTmz8OQUq0r5nIUe1nAG1ZIkOCtQE0-yz-jvzgatobq90p84ZSNUPv0MvAtmndG">
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== MAIN CANVAS ===================== -->
+  <main class="flex-1 p-margin md:p-lg max-w-[1280px] mx-auto w-full">
+    <div class="mb-lg">
+      <h2 class="font-headline-md text-headline-md text-primary mb-xs">Análisis Estratégico de Contraparte</h2>
+      <p class="font-body-lg text-body-lg text-on-surface-variant">Anticipa la teoría del caso, interrogatorios y alegatos de la contraparte con IA.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+
+      <!-- ===== LEFT COLUMN: INPUT ===== -->
+      <div class="lg:col-span-7 flex flex-col gap-lg">
+
+        <!-- Upload Zone -->
+        <section id="upload-zone" class="upload-zone bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded-lg p-margin flex flex-col items-center justify-center min-h-[200px] transition-all hover:border-primary cursor-pointer relative group"
+          onclick="document.getElementById('file-input').click()"
+          ondragover="handleDragOver(event)"
+          ondragleave="handleDragLeave(event)"
+          ondrop="handleDrop(event)">
+          <input id="file-input" type="file" accept=".pdf,.docx,.doc" class="hidden" onchange="handleFileSelect(event)">
+          <div id="upload-idle" class="flex flex-col items-center">
+            <div class="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mb-md group-hover:bg-primary-fixed transition-colors">
+              <span class="material-symbols-outlined text-primary text-[32px]">upload_file</span>
+            </div>
+            <h3 class="font-title-lg text-title-lg text-primary mb-sm text-center">Arrastra el expediente aquí</h3>
+            <p class="font-body-md text-body-md text-on-surface-variant mb-md text-center">Formatos soportados: PDF, DOCX (Máx. 50MB)</p>
+            <button type="button" class="border border-primary text-primary px-margin py-sm rounded hover:bg-surface-container-low transition-colors font-label-md text-label-md">
+              Examinar Archivos
+            </button>
+          </div>
+          <div id="upload-selected" class="hidden flex-col items-center w-full">
+            <div class="w-14 h-14 rounded-full bg-surface-container-low flex items-center justify-center mb-sm">
+              <span class="material-symbols-outlined text-primary text-[28px]">description</span>
+            </div>
+            <p id="file-name" class="font-title-lg text-title-lg text-primary text-center mb-xs truncate max-w-[280px]"></p>
+            <p id="file-size" class="font-caption text-caption text-on-surface-variant mb-sm"></p>
+            <button type="button" onclick="event.stopPropagation(); removeFile()" class="text-error font-caption text-caption hover:underline flex items-center gap-xs">
+              <span class="material-symbols-outlined" style="font-size:14px;">delete</span>
+              Eliminar archivo
+            </button>
+          </div>
+        </section>
+
+        <!-- Form Fields -->
+        <section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-margin flex flex-col gap-md">
+          <h3 class="font-title-lg text-title-lg text-primary">Datos del Expediente</h3>
+
+          <div class="flex flex-col gap-xs">
+            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wide">ID del Expediente *</label>
+            <input id="expediente-id" type="text" placeholder="Ej: 2024-CV-00123"
+              class="w-full bg-surface-container-low border border-outline-variant rounded p-sm font-body-md text-body-md text-on-background focus:outline-none focus:border-primary transition-colors">
+          </div>
+
+          <div class="flex flex-col gap-xs">
+            <label class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wide">Rol del Cliente *</label>
+            <select id="rol-cliente"
+              class="w-full bg-surface-container-low border border-outline-variant rounded p-sm font-body-md text-body-md text-on-background focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer">
+              <option value="">— Seleccionar —</option>
+              <option value="demandante">Demandante</option>
+              <option value="demandado">Demandado</option>
+            </select>
+          </div>
+        </section>
+
+        <!-- Action Button -->
+        <button id="btn-analizar" onclick="iniciarAnalisis()"
+          class="w-full bg-primary text-on-primary py-margin rounded font-title-lg text-title-lg hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-sm disabled:opacity-40 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined">play_arrow</span>
+          Iniciar Análisis Estratégico
+        </button>
+
+      </div>
+
+      <!-- ===== RIGHT COLUMN: RESULTS ===== -->
+      <div class="lg:col-span-5">
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-margin h-full min-h-[560px] flex flex-col">
+
+          <!-- Header -->
+          <div class="flex items-center gap-sm border-b border-outline-variant pb-sm mb-margin">
+            <span class="material-symbols-outlined text-on-surface-variant">terminal</span>
+            <h3 class="font-title-lg text-title-lg text-primary flex-1">Resultados del Análisis</h3>
+            <button id="btn-copy" onclick="copyResults()" class="hidden text-secondary hover:text-primary transition-colors p-xs" title="Copiar análisis">
+              <span class="material-symbols-outlined" style="font-size:20px;">content_copy</span>
+            </button>
+          </div>
+
+          <!-- STATE: Idle -->
+          <div id="state-idle" class="flex-1 flex flex-col items-center justify-center opacity-50">
+            <span class="material-symbols-outlined text-[48px] text-outline mb-sm">hourglass_empty</span>
+            <p class="font-body-md text-body-md text-on-surface-variant text-center">Esperando expediente para iniciar el análisis...</p>
+          </div>
+
+          <!-- STATE: Extracting -->
+          <div id="state-extracting" class="hidden flex-1 flex flex-col items-center justify-center gap-md">
+            <svg class="spinner w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <p id="state-extracting-msg" class="font-body-md text-body-md text-on-surface-variant text-center">Extrayendo texto del documento...</p>
+          </div>
+
+          <!-- STATE: Processing (Gemini) -->
+          <div id="state-processing" class="hidden flex-1 flex flex-col gap-md justify-center px-sm">
+            <div class="flex flex-col items-center gap-md mb-sm">
+              <svg class="spinner w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+              <p class="font-body-md text-body-md text-on-surface-variant text-center">Gemini 2.5 Pro está analizando el expediente...</p>
+            </div>
+            <div class="space-y-sm">
+              <div id="step1" class="flex items-center gap-sm opacity-30 transition-opacity duration-500">
+                <span class="material-symbols-outlined text-[18px]">psychology</span>
+                <span class="font-caption text-caption text-on-surface-variant">Analizando teoría del caso de la contraparte</span>
+              </div>
+              <div id="step2" class="flex items-center gap-sm opacity-30 transition-opacity duration-500">
+                <span class="material-symbols-outlined text-[18px]">record_voice_over</span>
+                <span class="font-caption text-caption text-on-surface-variant">Proyectando interrogatorios y testimonios</span>
+              </div>
+              <div id="step3" class="flex items-center gap-sm opacity-30 transition-opacity duration-500">
+                <span class="material-symbols-outlined text-[18px]">gavel</span>
+                <span class="font-caption text-caption text-on-surface-variant">Construyendo matriz de riesgos y alegatos</span>
+              </div>
+              <div id="step4" class="flex items-center gap-sm opacity-30 transition-opacity duration-500">
+                <span class="material-symbols-outlined text-[18px]">handshake</span>
+                <span class="font-caption text-caption text-on-surface-variant">Generando guía para el cliente</span>
+              </div>
+            </div>
+            <div class="mt-sm">
+              <div class="flex justify-between font-caption text-caption text-on-surface-variant mb-xs">
+                <span>Procesando con IA...</span>
+                <span id="progress-pct">0%</span>
+              </div>
+              <div class="w-full h-[3px] bg-surface-container-highest rounded-full overflow-hidden">
+                <div id="progress-bar" class="h-full bg-primary rounded-full transition-all duration-700 ease-out progress-pulse" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STATE: Error -->
+          <div id="state-error" class="hidden flex-1 flex flex-col items-center justify-center gap-sm px-sm">
+            <span class="material-symbols-outlined text-[40px] text-error">error_outline</span>
+            <p class="font-body-md text-body-md text-error text-center font-semibold">Error en el análisis</p>
+            <p id="error-msg" class="font-caption text-caption text-on-surface-variant text-center"></p>
+            <button onclick="resetForm()" class="mt-sm border border-primary text-primary px-md py-xs rounded font-label-md text-label-md hover:bg-surface-container-low transition-colors">
+              Intentar de nuevo
+            </button>
+          </div>
+
+          <!-- STATE: Results -->
+          <div id="state-results" class="hidden flex-1 flex flex-col">
+            <!-- Meta -->
+            <div id="result-meta" class="bg-surface-container-low rounded p-sm mb-sm flex items-center gap-sm border border-outline-variant">
+              <span class="material-symbols-outlined text-[18px] text-primary">check_circle</span>
+              <div>
+                <p id="result-id" class="font-label-md text-label-md text-primary"></p>
+                <p id="result-date" class="font-caption text-caption text-on-surface-variant"></p>
+              </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-outline-variant mb-sm gap-md">
+              <button class="tab-btn active font-label-md text-label-md text-on-surface-variant py-xs px-xs pb-sm transition-all" onclick="switchTab('kit', this)">
+                ⚖️ Kit de Audiencia
+              </button>
+              <button class="tab-btn font-label-md text-label-md text-on-surface-variant py-xs px-xs pb-sm transition-all" onclick="switchTab('cliente', this)">
+                👤 Guía al Cliente
+              </button>
+            </div>
+
+            <!-- Tab: Kit de Audiencia -->
+            <div id="tab-kit" class="tab-content active analysis-body overflow-y-auto no-scrollbar flex-1 text-sm pr-xs fade-in"></div>
+
+            <!-- Tab: Guía al Cliente -->
+            <div id="tab-cliente" class="tab-content analysis-body overflow-y-auto no-scrollbar flex-1 text-sm pr-xs fade-in"></div>
+          </div>
+
+          <!-- Footer actions -->
+          <div class="mt-auto pt-margin border-t border-outline-variant">
+            <div id="email-form" class="hidden mb-sm space-y-xs">
+              <input id="email-input" type="email" placeholder="ejemplo@firma.com"
+                class="w-full bg-surface-container-low border border-outline-variant rounded p-sm font-body-md text-body-md focus:border-primary focus:ring-0 focus:outline-none">
+              <button onclick="sendEmail()" class="w-full bg-primary text-on-primary py-sm rounded font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors">
+                Enviar Informe
+              </button>
+            </div>
+            <button onclick="document.getElementById('email-form').classList.toggle('hidden')"
+              class="w-full flex items-center justify-center gap-xs text-primary hover:text-on-primary-fixed-variant transition-colors font-label-md text-label-md py-sm">
+              <span class="material-symbols-outlined" style="font-size:20px;">mail</span>
+              Mandar a correo
+            </button>
+          </div>
+
+        </div>
+      </div>
+      <!-- end right col -->
+
+    </div>
+  </main>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="fixed bottom-6 right-6 bg-primary text-on-primary px-md py-sm rounded-lg font-body-md text-body-md opacity-0 pointer-events-none z-50 flex items-center gap-xs shadow-lg" style="transform: translateY(8px);">
+  <span id="toast-icon" class="material-symbols-outlined" style="font-size:18px;">check_circle</span>
+  <span id="toast-msg"></span>
+</div>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script>
+// ─────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────
+const GEMINI_API_KEY = "AIzaSyCUDYRV_F5IFNkCGNoBE3z_-sMPJaKRtpE";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ─────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────
+let selectedFile = null;
+let lastAnalysis = null;
+let progressInterval = null;
+
+// ─────────────────────────────────────────
+// FILE HANDLING
+// ─────────────────────────────────────────
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) setFile(file);
+}
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.add('drag-over');
+}
+function handleDragLeave(e) {
+  document.getElementById('upload-zone').classList.remove('drag-over');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) setFile(file);
+}
+function setFile(file) {
+  const allowed = ['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword'];
+  if (!allowed.includes(file.type) && !file.name.match(/\.(pdf|docx|doc)$/i)) {
+    showToast('Solo se aceptan archivos PDF o DOCX', 'error'); return;
+  }
+  if (file.size > 50 * 1024 * 1024) {
+    showToast('El archivo supera los 50MB', 'error'); return;
+  }
+  selectedFile = file;
+  document.getElementById('upload-idle').classList.add('hidden');
+  document.getElementById('upload-selected').classList.remove('hidden');
+  document.getElementById('upload-selected').classList.add('flex');
+  document.getElementById('file-name').textContent = file.name;
+  document.getElementById('file-size').textContent = formatBytes(file.size);
+}
+function removeFile() {
+  selectedFile = null;
+  document.getElementById('file-input').value = '';
+  document.getElementById('upload-idle').classList.remove('hidden');
+  document.getElementById('upload-selected').classList.add('hidden');
+  document.getElementById('upload-selected').classList.remove('flex');
+}
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+// ─────────────────────────────────────────
+// TEXT EXTRACTION
+// ─────────────────────────────────────────
+async function extractText(file) {
+  const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if (isPDF) {
+    return await extractPDF(file);
+  } else {
+    return await extractDOCX(file);
+  }
+}
+
+async function extractPDF(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(item => item.str).join(' ') + '\n';
+  }
+  return text.trim();
+}
+
+async function extractDOCX(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  return result.value.trim();
+}
+
+// ─────────────────────────────────────────
+// BUILD PROMPT (from workflow)
+// ─────────────────────────────────────────
+function buildPrompt(expediente_id, rol_cliente, texto_expediente) {
+  const contexto = [
+    `=== EXPEDIENTE N° ${expediente_id} ===`,
+    `ROL DE NUESTRO CLIENTE EN EL PROCESO: ${rol_cliente.toUpperCase()}`,
+    '',
+    texto_expediente
+  ].join('\n').trim();
+
+  return `Eres un abogado litigante colombiano de alto perfil con más de 20 años de experiencia en litigios complejos ante la jurisdicción ordinaria y contencioso-administrativa. Dominas el Código General del Proceso (1564 de 2012) (CGP), el CPACA, y la jurisprudencia de la Corte Suprema de Justicia y el Consejo de Estado. También eres experto en técnica de interrogatorio (arts. 198-220 CGP) y en alegatos de conclusión (art. 373 CGP).
+
+Tu misión NO es resumir el expediente. Tu misión es leer entre líneas y anticipar con precisión táctica la estrategia completa de la CONTRAPARTE: su teoría del caso, las preguntas que hará en juicio, y cómo cerrará en alegatos.
+
+A continuación tienes las piezas procesales del expediente:
+
+REGLAS DE FORMATO (ESTRICTAS PARA AMBOS ENTREGABLES):
+- Cero introducciones, saludos ni textos de relleno.
+- Limítate exclusivamente a las estructuras solicitadas.
+- La extensión ideal para cada respuesta, viñeta o celda es de 2 a 3 líneas. Sé analítico pero directo.
+
+[INICIO DEL EXPEDIENTE]
+${contexto}
+[FIN DEL EXPEDIENTE]
+
+Genera exactamente lo siguiente:
+
+# ==========================================
+# ENTREGABLE 1: SALIDA ESPERADA (KIT DE AUDIENCIA)
+# ==========================================
+
+## 1. TEORÍA Y LÍNEA JURÍDICA PROBABLE DE LA CONTRAPARTE
+*   **Narrativa Central:** El relato detallado que la contraparte intentará venderle al juez.
+*   **Fundamento Jurídico:** La norma específica o subregla jurisprudencial base de su pretensión/excepción y cómo la interpretan a su favor.
+*   **Carga de la Prueba (Art. 167 CGP):** Qué hecho complejo creen que nosotros NO podremos probar y cómo usarán ese vacío probatorio en nuestra contra.
+
+## 2. PREGUNTAS DE INTERROGATORIO DE PARTE Y TESTIGOS
+### A. Interrogatorio de Parte a Nuestro Cliente (Art. 198 CGP)
+| Pregunta Anticipada | Objetivo Táctico (2-3 líneas) | La Trampa y Riesgo (2-3 líneas) |
+| :--- | :--- | :--- |
+| 1. | | |
+| 2. | | |
+| 3. | | |
+
+### B. Preguntas a Testigos Conectadas con el Hecho a Probar (Art. 220 CGP)
+Para el testigo principal de la contraparte [Nombre/Rol]:
+*   **Hecho que buscan probar:** Lo que intentan demostrar a través de este testimonio específico.
+*   **Línea de Interrogatorio:** Las preguntas clave que le harán para consolidar ese hecho.
+*   **Vulnerabilidad a atacar:** La principal contradicción o sesgo en el expediente para restarle credibilidad en nuestro contrainterrogatorio.
+
+## 3. LÍNEA DE LOS ALEGATOS DE CONCLUSIÓN (Art. 373 CGP)
+*   **Argumento Central de Cierre:** La tesis principal con la que intentarán consolidar su victoria ante el juez.
+*   **Ataque a nuestra prueba:** Cuál de nuestras pruebas intentarán desestimar en la clausura y bajo qué argumento procesal.
+
+## 4. MATRIZ DE RIESGOS Y CONTRAMEDIDAS
+| Contexto (De dónde surge) | Riesgo (La amenaza procesal) | Razón (Por qué es letal) | Contramedida (Acción en 2-3 líneas) |
+| :--- | :--- | :--- | :--- |
+| 1. | | | |
+| 2. | | | |
+
+## 5. CIERRE ESTRATÉGICO DEFINITIVO
+*   **El Punto de Quiebre:** El elemento probatorio, término procesal o debate normativo que definirá si ganamos o perdemos.
+*   **Instrucción Final:** Directriz táctica absoluta que debe seguir nuestro equipo en la audiencia.
+
+
+# ==========================================
+# ENTREGABLE 2: GUÍA DE PREPARACIÓN PARA EL CLIENTE
+# ==========================================
+(Escribe esta sección en lenguaje ciudadano, empático y 100% libre de tecnicismos, artículos o jerga legal. Habla directamente con el cliente).
+
+## 1. ¿QUÉ ESTÁ INTENTANDO HACER LA OTRA PARTE?
+*   Explique de forma sencilla cuál es la "historia" que la contraparte le quiere contar al juez y qué buscan conseguir al final del proceso.
+
+## 2. LOS PUNTOS QUE DEBEMOS CUIDAR
+Explicación de los riesgos del caso en palabras sencillas:
+1. **El problema:** [Qué podría salir mal en 2 líneas] ➔ **Por qué importa:** [En qué nos afecta económicamente o en el resultado en 2 líneas]
+2. **El problema:** [Qué podría salir mal en 2 líneas] ➔ **Por qué importa:** [En qué nos afecta en 2 líneas]
+3. **El problema:** [Qué podría salir mal en 2 líneas] ➔ **Por qué importa:** [En qué nos afecta en 2 líneas]
+
+## 3. GUÍA PARA RESPONDER EN LA AUDIENCIA
+En la audiencia le harán preguntas para intentar confundirlo. Tenga mucho cuidado con estas 3 trampas específicas:
+*   **Si le preguntan sobre [Tema 1]:** Cuidado, en el fondo quieren que usted diga que [Intención real]. Al responder, recuerde mantener el enfoque en que [Idea clave para responder con la verdad de forma segura].
+*   **Si le preguntan sobre [Tema 2]:** Cuidado, en el fondo quieren que usted diga que [Intención real]. Al responder, recuerde mantener el enfoque en que [Idea clave].
+*   **Si le preguntan sobre [Tema 3]:** Cuidado, en el fondo quieren que usted diga que [Intención real]. Al responder, recuerde mantener el enfoque en que [Idea clave].
+
+## 4. EL CONSEJO FINAL DE SU ABOGADO
+*   Un cierre contundente, claro y tranquilizador que le recuerde al cliente cuál es la actitud y la regla de oro principal que debe mantener frente al juez.`;
+}
+
+// ─────────────────────────────────────────
+// MAIN FLOW
+// ─────────────────────────────────────────
+async function iniciarAnalisis() {
+  // Validate
+  if (!selectedFile) { showToast('Selecciona un archivo primero', 'error'); return; }
+  const expedienteId = document.getElementById('expediente-id').value.trim();
+  const rolCliente = document.getElementById('rol-cliente').value;
+  if (!expedienteId) { showToast('Ingresa el ID del expediente', 'error'); return; }
+  if (!rolCliente) { showToast('Selecciona el rol del cliente', 'error'); return; }
+
+  // Disable button
+  const btn = document.getElementById('btn-analizar');
+  btn.disabled = true;
+
+  try {
+    // Step 1: Extract text
+    setState('extracting');
+    document.getElementById('state-extracting-msg').textContent =
+      selectedFile.name.toLowerCase().endsWith('.pdf')
+        ? 'Extrayendo texto del PDF...'
+        : 'Extrayendo texto del DOCX...';
+
+    const texto = await extractText(selectedFile);
+
+    if (!texto || texto.length < 50) {
+      throw new Error('No se pudo extraer texto del archivo. Asegúrate de que el PDF tenga texto seleccionable (no escaneado) o que el DOCX sea válido.');
+    }
+
+    // Step 2: Send to Gemini
+    setState('processing');
+    startProgressAnimation();
+
+    const prompt = buildPrompt(expedienteId, rolCliente, texto);
+
+    let data, analisis;
+    try {
+      const response = await fetch(GEMINI_URL, {
+        method: 'POST',
+        
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 30000,
+            topP: 0.85,
+            topK: 40
+          }
+        })
+      });
+
+      stopProgressAnimation();
+
+      if (!response.ok) {
+        let errMsg = response.statusText;
+        try { const e = await response.json(); errMsg = e?.error?.message || errMsg; } catch(_) {}
+        throw new Error(`Error de Gemini API (${response.status}): ${errMsg}`);
+      }
+
+      data = await response.json();
+    } catch(fetchErr) {
+      stopProgressAnimation();
+      if (fetchErr.message.includes('Failed to fetch') || fetchErr.message.includes('Load failed') || fetchErr.message.includes('NetworkError')) {
+        throw new Error('No se pudo conectar con Gemini. Verifica: (1) conexión a internet, (2) que la API key sea válida, (3) que la API de Gemini esté habilitada en Google Cloud Console en: https://aistudio.google.com/apikey');
+      }
+      throw fetchErr;
+    }
+
+    analisis = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!analisis) throw new Error('Gemini no devolvió análisis. Verifica la API key y la cuota en https://aistudio.google.com/apikey');
+
+    // Step 3: Show results
+    const fecha = new Date().toLocaleDateString('es-CO', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    lastAnalysis = { expedienteId, rolCliente, fecha, analisis };
+    addToRecent(expedienteId, fecha);
+    renderResults(expedienteId, rolCliente, fecha, analisis);
+
+  } catch (err) {
+    stopProgressAnimation();
+    setState('error');
+    document.getElementById('error-msg').textContent = err.message;
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ─────────────────────────────────────────
+// RENDER RESULTS
+// ─────────────────────────────────────────
+function renderResults(expedienteId, rolCliente, fecha, analisis) {
+  // Split the two deliverables
+  const splitMarker = /#{1,2}\s*={3,}[\s\S]*?ENTREGABLE 2/i;
+  let kitText = analisis;
+  let clienteText = '';
+
+  const splitIdx = analisis.search(splitMarker);
+  if (splitIdx !== -1) {
+    kitText = analisis.substring(0, splitIdx);
+    clienteText = analisis.substring(splitIdx);
+  } else {
+    // fallback: try splitting on "GUÍA DE PREPARACIÓN"
+    const alt = analisis.indexOf('GUÍA DE PREPARACIÓN PARA EL CLIENTE');
+    if (alt !== -1) {
+      kitText = analisis.substring(0, alt);
+      clienteText = analisis.substring(alt);
+    }
+  }
+
+  document.getElementById('tab-kit').innerHTML = markdownToHtml(kitText);
+  document.getElementById('tab-cliente').innerHTML = markdownToHtml(clienteText || '<p><em>No se generó la guía al cliente. Revisa el análisis completo en el Kit de Audiencia.</em></p>');
+
+  document.getElementById('result-id').textContent = `Expediente ${expedienteId} · ${rolCliente}`;
+  document.getElementById('result-date').textContent = fecha;
+  document.getElementById('btn-copy').classList.remove('hidden');
+
+  setState('results');
+  showToast('Análisis completado exitosamente', 'success');
+}
+
+// ─────────────────────────────────────────
+// MARKDOWN → HTML
+// ─────────────────────────────────────────
+function markdownToHtml(md) {
+  if (!md) return '';
+
+  // Tables first
+  md = md.replace(/\|(.+)\|\n\|[-:| ]+\|\n((?:\|.+\|\n?)+)/g, (match, header, body) => {
+    const headers = header.split('|').map(s => s.trim()).filter(Boolean);
+    const rows = body.trim().split('\n').map(row =>
+      row.split('|').map(s => s.trim()).filter(Boolean)
+    );
+    let html = '<table><thead><tr>';
+    headers.forEach(h => { html += `<th>${h}</th>`; });
+    html += '</tr></thead><tbody>';
+    rows.forEach(row => {
+      html += '<tr>';
+      row.forEach(cell => { html += `<td>${cell}</td>`; });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  });
+
+  const lines = md.split('\n');
+  let html = '';
+  let inList = false;
+
+  for (let line of lines) {
+    // Headings
+    if (/^#{4,}\s/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h3>${inlineFormat(line.replace(/^#{4,}\s/, ''))}</h3>`;
+    } else if (/^###\s/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h3>${inlineFormat(line.replace(/^###\s/, ''))}</h3>`;
+    } else if (/^##\s/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h2>${inlineFormat(line.replace(/^##\s/, ''))}</h2>`;
+    } else if (/^#\s/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h1>${inlineFormat(line.replace(/^#\s/, ''))}</h1>`;
+    }
+    // List items (* or -)
+    else if (/^\*\s+/.test(line) || /^-\s+/.test(line)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${inlineFormat(line.replace(/^[\*\-]\s+/, ''))}</li>`;
+    }
+    // Numbered list
+    else if (/^\d+\.\s/.test(line)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${inlineFormat(line.replace(/^\d+\.\s/, ''))}</li>`;
+    }
+    // HR
+    else if (/^---+$/.test(line.trim())) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<hr>';
+    }
+    // Empty line
+    else if (line.trim() === '') {
+      if (inList) { html += '</ul>'; inList = false; }
+    }
+    // Paragraph
+    else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<p>${inlineFormat(line)}</p>`;
+    }
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
+function inlineFormat(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>');
+}
+
+// ─────────────────────────────────────────
+// UI STATE MACHINE
+// ─────────────────────────────────────────
+function setState(s) {
+  ['idle','extracting','processing','error','results'].forEach(id => {
+    const el = document.getElementById('state-' + id);
+    if (el) el.classList.add('hidden');
+  });
+  const target = document.getElementById('state-' + s);
+  if (target) {
+    target.classList.remove('hidden');
+    if (s !== 'idle') target.classList.add('flex');
+  }
+}
+
+// ─────────────────────────────────────────
+// PROGRESS ANIMATION
+// ─────────────────────────────────────────
+function startProgressAnimation() {
+  let pct = 0;
+  const steps = ['step1','step2','step3','step4'];
+  let stepIdx = 0;
+  progressInterval = setInterval(() => {
+    pct = Math.min(pct + Math.random() * 4, 95);
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-pct').textContent = Math.round(pct) + '%';
+
+    // activate steps progressively
+    const newStep = Math.floor(pct / 25);
+    if (newStep > stepIdx && stepIdx < steps.length) {
+      document.getElementById(steps[stepIdx]).classList.remove('opacity-30');
+      document.getElementById(steps[stepIdx]).classList.add('opacity-100');
+      stepIdx++;
+    }
+  }, 600);
+}
+
+function stopProgressAnimation() {
+  clearInterval(progressInterval);
+  document.getElementById('progress-bar').style.width = '100%';
+  document.getElementById('progress-pct').textContent = '100%';
+  // activate all steps
+  ['step1','step2','step3','step4'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('opacity-30'); el.classList.add('opacity-100'); }
+  });
+}
+
+// ─────────────────────────────────────────
+// TABS
+// ─────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ─────────────────────────────────────────
+// COPY
+// ─────────────────────────────────────────
+function copyResults() {
+  if (!lastAnalysis) return;
+  const text = [
+    `INFORME ESTRATÉGICO — ANTICIPACIÓN DE CONTRAPARTE`,
+    `Expediente: ${lastAnalysis.expedienteId}`,
+    `Rol: ${lastAnalysis.rolCliente}`,
+    `Fecha: ${lastAnalysis.fecha}`,
+    '',
+    lastAnalysis.analisis
+  ].join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Análisis copiado al portapapeles', 'success');
+  }).catch(() => {
+    showToast('No se pudo copiar', 'error');
+  });
+}
+
+// ─────────────────────────────────────────
+// EMAIL (mailto fallback)
+// ─────────────────────────────────────────
+function sendEmail() {
+  if (!lastAnalysis) { showToast('No hay análisis para enviar', 'error'); return; }
+  const email = document.getElementById('email-input').value.trim();
+  if (!email || !email.includes('@')) { showToast('Ingresa un correo válido', 'error'); return; }
+
+  const subject = encodeURIComponent(`Informe Estratégico — Expediente ${lastAnalysis.expedienteId}`);
+  const body = encodeURIComponent(
+    `Adjunto el informe estratégico generado por Lexis Chambers.\n\nExpediente: ${lastAnalysis.expedienteId}\nRol del cliente: ${lastAnalysis.rolCliente}\nFecha: ${lastAnalysis.fecha}\n\n---\n\n${lastAnalysis.analisis.substring(0, 2000)}...\n\n(Informe completo generado el ${lastAnalysis.fecha})`
+  );
+  window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  showToast('Abriendo cliente de correo...', 'success');
+}
+
+// ─────────────────────────────────────────
+// RECENT ANALYSES
+// ─────────────────────────────────────────
+function addToRecent(id, fecha) {
+  const list = document.getElementById('recent-list');
+  // Remove placeholder
+  const placeholder = list.querySelector('p.italic');
+  if (placeholder) placeholder.remove();
+
+  const item = document.createElement('div');
+  item.className = 'flex items-center gap-xs p-sm rounded hover:bg-surface-container-low cursor-pointer transition-colors';
+  item.innerHTML = `
+    <span class="material-symbols-outlined text-[16px] text-on-surface-variant">description</span>
+    <div class="flex-1 min-w-0">
+      <p class="font-caption text-caption text-primary truncate">${id}</p>
+      <p class="font-caption text-caption text-on-surface-variant" style="font-size:10px;">${new Date().toLocaleDateString('es-CO')}</p>
+    </div>
+  `;
+  list.prepend(item);
+}
+
+// ─────────────────────────────────────────
+// RESET
+// ─────────────────────────────────────────
+function resetForm() {
+  removeFile();
+  document.getElementById('expediente-id').value = '';
+  document.getElementById('rol-cliente').value = '';
+  document.getElementById('btn-copy').classList.add('hidden');
+  document.getElementById('email-form').classList.add('hidden');
+  // Reset progress steps
+  ['step1','step2','step3','step4'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.classList.add('opacity-30'); el.classList.remove('opacity-100'); }
+  });
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('progress-pct').textContent = '0%';
+  setState('idle');
+  lastAnalysis = null;
+}
+
+// ─────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  const icon = document.getElementById('toast-icon');
+  const msgEl = document.getElementById('toast-msg');
+
+  toast.style.background = type === 'error' ? '#ba1a1a' : '#000';
+  icon.textContent = type === 'error' ? 'error' : 'check_circle';
+  msgEl.textContent = msg;
+
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateY(0)';
+  toast.style.pointerEvents = 'auto';
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    toast.style.pointerEvents = 'none';
+  }, 3500);
+}
+</script>
+</body>
+</html>
