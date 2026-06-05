@@ -1,0 +1,750 @@
+# Flujo n8n — Anticipación Estratégica de Contraparte
+## Guía de implementación paso a paso para localhost
+### Firma de litigios colombiana · Gemini 1.5 Pro · n8n self-hosted · v2.0
+
+---
+
+> **Propósito:** Instrucciones técnicas completas para construir un flujo en n8n (localhost) que analiza todos los documentos del expediente en **una sola llamada a Gemini** y devuelve un informe estratégico integrado con tres módulos: teoría del caso de la contraparte, preguntas anticipadas en juicio, y alegatos proyectados. Los tres módulos se generan juntos para que las conclusiones de uno alimenten los siguientes.
+
+---
+
+## ÍNDICE
+
+1. Requisitos previos e instalación de n8n
+2. Obtener la API Key de Gemini
+3. Configurar variables de entorno en n8n
+4. Arquitectura general del flujo
+5. Construcción nodo por nodo
+6. El prompt único y unificado de Gemini
+7. Prueba del flujo con cURL
+8. Formato JSON de entrada esperado
+9. Ejemplo de salida del sistema
+10. Solución de errores comunes
+
+---
+
+## 1. REQUISITOS PREVIOS E INSTALACIÓN DE N8N
+
+### 1.1 Requisitos del sistema
+
+- Node.js versión 18 o superior
+- npm versión 8 o superior
+- Sistema operativo: macOS, Linux o Windows con WSL2
+- Puerto 5678 libre en localhost
+- Conexión a internet para las llamadas a Gemini
+
+### 1.2 Verificar Node.js
+
+```bash
+node --version
+npm --version
+```
+
+Si Node.js no está instalado, descargarlo desde https://nodejs.org (versión LTS).
+
+### 1.3 Instalar n8n globalmente
+
+```bash
+npm install -g n8n
+```
+
+### 1.4 Iniciar n8n
+
+```bash
+n8n start
+```
+
+Se abre automáticamente en: **http://localhost:5678**
+
+Crear una cuenta de administrador con email y contraseña cuando lo solicite.
+
+### 1.5 (Recomendado) Instalar con Docker para persistencia de datos
+
+```bash
+docker run -it --rm \
+  --name n8n \
+  -p 5678:5678 \
+  -v ~/.n8n:/home/node/.n8n \
+  -e N8N_BASIC_AUTH_ACTIVE=true \
+  -e N8N_BASIC_AUTH_USER=admin \
+  -e N8N_BASIC_AUTH_PASSWORD=password123 \
+  n8nio/n8n
+```
+
+Acceder en: **http://localhost:5678**
+
+---
+
+## 2. OBTENER LA API KEY DE GEMINI
+
+### 2.1 Crear la API Key
+
+1. Ir a **https://aistudio.google.com/app/apikey**
+2. Iniciar sesión con cuenta de Google
+3. Hacer clic en **"Create API key"**
+4. Seleccionar un proyecto de Google Cloud (o crear uno nuevo)
+5. Copiar la API key generada (empieza con `AIza...`)
+
+### 2.2 Verificar que la key funciona
+
+Ejecutar en la terminal (reemplazar `TU_API_KEY` con la key real):
+
+```bash
+curl -X POST \
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=TU_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"contents":[{"parts":[{"text":"Responde solo: API funcionando"}]}]}'
+```
+
+La respuesta debe contener el texto "API funcionando". Si hay error 403, la key es incorrecta.
+
+---
+
+## 3. CONFIGURAR VARIABLES DE ENTORNO EN N8N
+
+1. En n8n ir al menú lateral → **Settings** → **Variables**
+2. Hacer clic en **"Add Variable"**
+3. Configurar:
+   - **Name:** `GEMINI_API_KEY`
+   - **Value:** pegar la API key completa (comienza con `AIza...`)
+4. Hacer clic en **Save**
+
+Esta variable se referencia en los nodos como `{{ $env.GEMINI_API_KEY }}` y nunca queda expuesta en el canvas.
+
+---
+
+## 4. ARQUITECTURA GENERAL DEL FLUJO
+
+El flujo tiene **5 nodos** en línea recta. Sin bifurcaciones ni paralelismo. Una sola llamada a Gemini que analiza todo el expediente y produce el informe completo de una vez.
+
+```
+[1] Webhook Trigger
+        ↓
+[2] Code Node — Ensamblar contexto y prompt único
+        ↓
+[3] HTTP Request → Gemini 1.5 Pro
+    (Un solo análisis con los tres módulos integrados)
+        ↓
+[4] Code Node — Extraer y estructurar la respuesta
+        ↓
+   ┌────┴────┐
+   ↓         ↓
+[5] Respond  [6] Email (opcional, corre en paralelo)
+  to Webhook
+```
+
+**Tiempo total estimado:** 20–40 segundos (una sola llamada a Gemini con respuesta extensa).
+
+**Por qué un solo nodo de Gemini es mejor:**
+- Gemini lee todo el expediente una vez y mantiene el contexto completo durante todo el análisis
+- El módulo de interrogatorios puede referirse a la teoría del caso ya construida en el módulo 1
+- Los alegatos proyectados pueden mencionar las preguntas anticipadas del módulo 2
+- El análisis es coherente e integrado, no tres piezas independientes que no se conocen entre sí
+
+---
+
+## 5. CONSTRUCCIÓN NODO POR NODO
+
+---
+
+### NODO 1 — Webhook Trigger
+
+**Propósito:** Punto de entrada. Recibe los documentos del expediente en JSON.
+
+**Pasos:**
+
+1. Al abrir n8n por primera vez el canvas está vacío. Hacer clic en el botón **"Add first step"** o en **"+"**
+2. En el buscador de nodos escribir: `Webhook`
+3. Seleccionar el nodo **"Webhook"**
+4. Configurar los siguientes campos en el panel derecho:
+
+| Campo | Valor |
+|---|---|
+| **HTTP Method** | POST |
+| **Path** | `analisis-contraparte` |
+| **Authentication** | None (para pruebas locales) |
+| **Response Mode** | `Last Node` |
+
+> **Crítico:** El campo **Response Mode** debe estar en `Last Node`. Esto hace que el webhook espere a que todo el flujo termine antes de responder. Si queda en `Immediately`, el webhook responde vacío antes de que Gemini termine.
+
+5. Hacer clic en el nombre del nodo en la parte superior del panel y renombrarlo: `Entrada del expediente`
+6. Hacer clic en **"Back to canvas"**
+
+**La URL del webhook (para usar en las pruebas) será:**
+```
+http://localhost:5678/webhook/analisis-contraparte
+```
+
+---
+
+### NODO 2 — Code Node: Ensamblar contexto y construir el prompt
+
+**Propósito:** Toma los campos del JSON recibido, los une en un bloque de contexto procesal, y construye el prompt único que se enviará a Gemini. Este es el nodo más importante del flujo.
+
+**Pasos:**
+
+1. Hacer clic en el **"+"** que aparece debajo del Nodo 1
+2. En el buscador escribir: `Code`
+3. Seleccionar el nodo **"Code"**
+4. En el panel derecho, verificar que **Language** esté en `JavaScript`
+5. Hacer clic dentro del área de código, seleccionar todo (Ctrl+A) y borrar el contenido por defecto
+6. Pegar el siguiente código completo:
+
+```javascript
+// ============================================================
+// NODO 2 — Ensamblar contexto procesal y construir prompt único
+// ============================================================
+
+const item = $input.first().json;
+
+// --- Extraer campos del expediente ---
+const expediente_id = item.expediente_id || 'SIN-ID';
+const rol_cliente   = item.rol_cliente   || 'demandante';
+const demanda       = item.demanda       || '';
+const contestacion  = item.contestacion  || '';
+const descorre      = item.descorre_excepciones || '';
+const otras         = item.otras_piezas  || '';
+
+// --- Validación mínima ---
+if (!demanda || !contestacion) {
+  throw new Error(
+    'El expediente debe incluir al menos los campos "demanda" y "contestacion" con texto.'
+  );
+}
+
+// --- Construir el bloque de contexto unificado ---
+const contexto = `
+=== EXPEDIENTE N° ${expediente_id} ===
+ROL DE NUESTRO CLIENTE EN EL PROCESO: ${rol_cliente.toUpperCase()}
+
+--- DEMANDA ---
+${demanda}
+
+--- CONTESTACIÓN DE LA DEMANDA ---
+${contestacion}
+
+--- DESCORRE DE EXCEPCIONES ---
+${descorre ? descorre : '(No disponible en este expediente)'}
+
+--- OTRAS PIEZAS PROCESALES ---
+${otras ? otras : '(No hay piezas adicionales)'}
+`.trim();
+
+// --- Construir el PROMPT ÚNICO E INTEGRADO ---
+// Este prompt instruye a Gemini para producir los tres módulos
+// en una sola respuesta, de forma que cada módulo pueda
+// referirse a lo que analizó en los módulos anteriores.
+
+const prompt = `Eres un abogado litigante colombiano con más de 20 años de experiencia en litigios de alta complejidad ante la jurisdicción ordinaria y contencioso-administrativa. Dominas el Código General del Proceso (CGP), el CPACA, el Código Civil, el Código de Comercio, y la jurisprudencia de la Corte Suprema de Justicia y el Consejo de Estado. Has sido parte de equipos que han litigado casos emblemáticos en Colombia.
+
+Tu misión NO es resumir el expediente. Tu misión es leer entre líneas, reconstruir con precisión la estrategia del abogado contrario, y producir un informe táctico que le permita a nuestro equipo anticiparse en cada etapa del proceso.
+
+A continuación tienes todas las piezas procesales disponibles del expediente:
+
+[INICIO DEL EXPEDIENTE]
+${contexto}
+[FIN DEL EXPEDIENTE]
+
+---
+
+Produce el siguiente informe estratégico completo. Los tres módulos deben ser coherentes entre sí: el módulo 2 debe considerar la teoría del caso construida en el módulo 1, y el módulo 3 debe articularse con lo analizado en los módulos 1 y 2.
+
+Responde ÚNICAMENTE con el informe en el formato que se indica a continuación. No incluyas introducción ni comentarios fuera del formato.
+
+---
+
+# MÓDULO 1: TEORÍA DEL CASO Y LÍNEA ESTRATÉGICA DE LA CONTRAPARTE
+
+## 1.1 Narrativa de hechos de la contraparte
+¿Cuál es el relato de los hechos que construye la contraparte? ¿Cómo presentan la situación para que el juez los vea como la parte con razón? Describe su narrativa, no la nuestra. Sé específico con los hechos del expediente.
+
+## 1.2 Hechos que necesitan probar para ganar
+Lista concreta y numerada de los hechos que la contraparte debe demostrar. Para cada hecho indica: qué prueba del expediente ya tienen o qué prueba van a buscar.
+
+## 1.3 Hechos de nuestra posición que necesitan neutralizar
+¿Cuáles argumentos o hechos de nuestra narrativa son el mayor obstáculo para ellos? ¿Cómo los están abordando en las piezas ya presentadas?
+
+## 1.4 Fundamento jurídico que van a sostener
+¿En qué normas y jurisprudencia van a apoyar su posición? Menciona artículos específicos del CGP, código civil, código de comercio, o la ley que aplique según el tipo de proceso. Indica qué líneas jurisprudenciales probablemente citarán.
+
+## 1.5 Línea estratégica adoptada
+¿Van a litigar por excepciones procesales o por el fondo? ¿Buscan desgastar, dilatar o resolver rápido? ¿Qué evidencia del expediente respalda esta conclusión? Identifica los 3 puntos débiles de la contraparte que ya se evidencian en las piezas presentadas.
+
+## 1.6 Los tres argumentos más peligrosos para nuestra posición
+Para cada uno: ¿por qué es peligroso? ¿Cómo podríamos neutralizarlo?
+
+---
+
+# MÓDULO 2: PREGUNTAS ANTICIPADAS EN JUICIO
+
+(Construye este módulo con base en la teoría del caso identificada en el Módulo 1)
+
+## 2.1 Interrogatorio de parte a nuestro cliente
+La contraparte interrogará a nuestro cliente (art. 198 CGP). Lista las 10 preguntas más probables en orden de mayor a menor impacto táctico.
+
+Para cada pregunta:
+- **Pregunta:** (el texto exacto o muy similar que harán)
+- **Objetivo táctico:** qué hecho o contradicción buscan establecer
+- **La trampa:** cuál es el riesgo si nuestro cliente responde sin preparación
+
+## 2.2 Testigos que probablemente presentará la contraparte
+¿Qué personas va a presentar como testigos? (Infierelo de los hechos del expediente).
+Para cada testigo probable:
+- Quién es y por qué los llaman
+- Las 5 preguntas clave que les harán para construir su narrativa
+- Qué hecho específico buscan probar con ese testigo
+
+## 2.3 Contrainterrogatorio a nuestros testigos
+La contraparte va a contrainterrogar a los testigos que presentemos (art. 220 CGP).
+- ¿Qué estrategia general usarán para atacar la credibilidad de nuestros testigos?
+- Para cada testigo que inferimos que vamos a presentar: las 3 preguntas más peligrosas que la contraparte podría hacerle
+- ¿Qué contradicciones o inconsistencias del expediente puede explotar en el contrainterrogatorio?
+
+---
+
+# MÓDULO 3: ALEGATOS DE CONCLUSIÓN PROYECTADOS
+
+(Construye este módulo articulando la teoría del caso del Módulo 1 y las pruebas que anticipamos en el Módulo 2)
+
+## 3.1 Apertura del alegato
+¿Cómo abrirá el alegato el abogado contrario? ¿Empezará con la norma violada, con un hecho impactante, con un ataque a nuestra credibilidad, o con una síntesis del daño sufrido? ¿Cuál es el mensaje central de una sola línea que quieren dejar en el juez?
+
+## 3.2 Argumentos jurídicos de fondo
+Los 5 argumentos jurídicos principales que presentará al juez, ordenados de mayor a menor peso.
+
+Para cada argumento:
+- **Argumento:** descripción precisa
+- **Norma o jurisprudencia de apoyo:** artículo o línea jurisprudencial previsible
+- **Por qué es fuerte:** su solidez real
+- **Nuestra réplica obligatoria:** qué debemos tener preparado para contradecirlo
+
+## 3.3 Manejo de pruebas en los alegatos
+- ¿Cuáles pruebas del expediente van a enfatizar y cómo las valorarán en su favor?
+- ¿Cuáles de nuestras pruebas intentarán minimizar y con qué argumento?
+- ¿Qué van a señalar que NO probamos nosotros y que era nuestra carga?
+
+## 3.4 Cierre del alegato
+- ¿Cuál será su petición concreta al juez?
+- ¿Con qué argumento moral, de equidad o de justicia van a cerrar?
+- ¿Cuál es el momento más peligroso de su alegato para nuestra posición y cómo lo anticipamos?
+
+---
+
+Responde en español jurídico colombiano. Fundamenta cada afirmación en el expediente. No uses lenguaje genérico. El objetivo es que el abogado litigante lea este informe y pueda preparar su estrategia punto por punto.`;
+
+// Devolver el contexto y el prompt listos para el nodo de Gemini
+return [{
+  json: {
+    expediente_id,
+    rol_cliente,
+    prompt
+  }
+}];
+```
+
+7. Hacer clic en **"Execute Node"** (botón naranja) para verificar que el código no tiene errores
+8. Renombrar el nodo: `Ensamblar prompt único`
+9. Hacer clic en **"Back to canvas"**
+
+---
+
+### NODO 3 — HTTP Request: Gemini 1.5 Pro (análisis único)
+
+**Propósito:** La única llamada a Gemini. Recibe el expediente completo y el prompt unificado, y produce los tres módulos del informe estratégico en una sola respuesta coherente.
+
+**Pasos:**
+
+1. Hacer clic en el **"+"** debajo del Nodo 2
+2. En el buscador escribir: `HTTP Request`
+3. Seleccionar el nodo **"HTTP Request"**
+4. Configurar los siguientes campos:
+
+**Campo Method:**
+- Seleccionar **POST**
+
+**Campo URL:**
+```
+https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={{ $env.GEMINI_API_KEY }}
+```
+
+> Escribir la URL exactamente así. La expresión `{{ $env.GEMINI_API_KEY }}` será reemplazada automáticamente por n8n con el valor de la variable guardada en Settings.
+
+**Sección "Send Body":**
+- Activar el toggle **"Send Body"**
+- **Body Content Type:** seleccionar `JSON`
+- **Specify Body:** seleccionar `Using JSON`
+- En el campo **JSON** pegar el siguiente objeto:
+
+```json
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "={{ $json.prompt }}"
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "temperature": 0.35,
+    "maxOutputTokens": 8192,
+    "topP": 0.85,
+    "topK": 40
+  }
+}
+```
+
+> **Atención con la expresión:** El campo `text` tiene el valor `={{ $json.prompt }}`. El signo `=` al inicio es obligatorio — le dice a n8n que evalúe la expresión dinámicamente en lugar de enviar el texto literal. Sin el `=`, Gemini recibiría la cadena `{{ $json.prompt }}` literalmente.
+
+> **Sobre maxOutputTokens:** Se configura en `8192` porque el análisis integrado de los tres módulos es extenso. Gemini 1.5 Pro soporta hasta 8192 tokens de output. No reducir este valor o el informe quedará cortado.
+
+**Sección "Send Headers":**
+- Activar el toggle **"Send Headers"**
+- Hacer clic en **"Add Header"**
+- **Name:** `Content-Type`
+- **Value:** `application/json`
+
+5. Renombrar el nodo: `Gemini — Análisis estratégico`
+6. Hacer clic en **"Back to canvas"**
+
+---
+
+### NODO 4 — Code Node: Extraer y estructurar la respuesta
+
+**Propósito:** Extrae el texto de la respuesta de Gemini, construye el informe final en Markdown y lo empaqueta en un JSON limpio listo para devolver.
+
+**Pasos:**
+
+1. Hacer clic en el **"+"** debajo del Nodo 3
+2. Seleccionar **"Code"**
+3. Seleccionar **JavaScript**
+4. Borrar el contenido por defecto y pegar:
+
+```javascript
+// ============================================================
+// NODO 4 — Extraer respuesta de Gemini y armar informe final
+// ============================================================
+
+const item = $input.first().json;
+
+// Extraer el texto de la respuesta de Gemini
+// La respuesta de Gemini tiene esta estructura:
+// { candidates: [{ content: { parts: [{ text: "..." }] } }] }
+let analisis = '';
+
+try {
+  analisis = item.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!analisis) {
+    // Si no hay texto, revisar si Gemini devolvió un error
+    const blockReason = item.promptFeedback?.blockReason;
+    if (blockReason) {
+      throw new Error(`Gemini bloqueó la solicitud. Razón: ${blockReason}`);
+    }
+    throw new Error('Gemini no devolvió texto. Verificar la API key y el formato del request.');
+  }
+} catch (e) {
+  throw new Error(`Error al procesar respuesta de Gemini: ${e.message}`);
+}
+
+// Construir el informe final con encabezado y pie
+const expediente_id = $('Ensamblar prompt único').first().json.expediente_id;
+const rol_cliente   = $('Ensamblar prompt único').first().json.rol_cliente;
+
+const informe_completo = `# INFORME ESTRATÉGICO — ANTICIPACIÓN DE CONTRAPARTE
+**Expediente N°:** ${expediente_id}
+**Rol de nuestro cliente:** ${rol_cliente}
+**Fecha de análisis:** ${new Date().toLocaleDateString('es-CO', { dateStyle: 'full' })}
+**Generado por:** Sistema de Inteligencia Procesal · n8n + Gemini 1.5 Pro
+
+---
+
+${analisis}
+
+---
+
+*Análisis generado con IA. Revisión obligatoria por el abogado responsable antes de su uso estratégico.*
+`;
+
+return [{
+  json: {
+    expediente_id,
+    rol_cliente,
+    fecha_analisis: new Date().toISOString(),
+    informe_completo,
+    status: 'completado'
+  }
+}];
+```
+
+> **Nota sobre la expresión `$('Ensamblar prompt único')`:** Esta expresión le dice a n8n que recupere los datos del Nodo 2 por su nombre. El nombre del nodo 2 debe ser exactamente `Ensamblar prompt único` (con tilde). Si se le cambió el nombre, actualizar la referencia en el código.
+
+5. Renombrar el nodo: `Estructurar informe`
+6. Hacer clic en **"Back to canvas"**
+
+---
+
+### NODO 5 — Respond to Webhook
+
+**Propósito:** Devuelve el informe estratégico completo como respuesta HTTP al sistema que hizo la solicitud.
+
+**Pasos:**
+
+1. Hacer clic en el **"+"** debajo del Nodo 4
+2. Buscar y seleccionar **"Respond to Webhook"**
+3. Configurar:
+
+| Campo | Valor |
+|---|---|
+| **Respond With** | `JSON` |
+| **Response Code** | `200` |
+| **Response Body** | Activar "Use Expression" y escribir: `={{ JSON.stringify($json) }}` |
+
+4. Renombrar: `Respuesta al cliente`
+5. Hacer clic en **"Back to canvas"**
+
+---
+
+### NODO 6 — Send Email (opcional, corre en paralelo)
+
+**Propósito:** Envía el informe por email al abogado responsable cuando el análisis está listo. Corre en paralelo con el Nodo 5.
+
+**Pasos:**
+
+1. Hacer clic en el **punto de salida del Nodo 4** (lado derecho del nodo) y arrastrarlo a un área libre del canvas — esto crea una segunda conexión saliente del Nodo 4
+2. Seleccionar **"Send Email"**
+3. En **Credential to connect with:** hacer clic en **"Create New"** y configurar:
+
+**Para Gmail:**
+- **Host:** `smtp.gmail.com`
+- **Port:** `587`
+- **SSL/TLS:** STARTTLS
+- **User:** el email de Gmail
+- **Password:** contraseña de aplicación (no la contraseña normal — generar en https://myaccount.google.com/apppasswords)
+
+4. Configurar el email:
+
+| Campo | Valor |
+|---|---|
+| **To** | `abogado@firma.com` |
+| **From** | `sistema@firma.com` |
+| **Subject** | `={{ '[ESTRATEGIA] Análisis contraparte — Expediente ' + $json.expediente_id }}` |
+| **Email Format** | Text |
+| **Text** | `={{ $json.informe_completo }}` |
+
+5. Renombrar: `Notificar al abogado`
+
+---
+
+### ACTIVAR EL FLUJO
+
+1. En la esquina superior derecha, hacer clic en el toggle que dice **"Inactive"**
+2. Cambia a **"Active"** (verde)
+3. El flujo ya está escuchando en: `http://localhost:5678/webhook/analisis-contraparte`
+
+---
+
+## 6. EL PROMPT ÚNICO E INTEGRADO (REFERENCIA)
+
+El prompt está construido dentro del Nodo 2 en la variable `prompt`. Su lógica es:
+
+1. **Primero establece el rol del experto** — litigante colombiano con 20 años de experiencia y dominio específico del CGP y CPACA
+2. **Inyecta el contexto completo del expediente** — todas las piezas procesales en un solo bloque
+3. **Instruye a Gemini que los módulos deben ser coherentes entre sí** — el módulo 2 debe considerar lo del módulo 1, el módulo 3 debe articular los dos anteriores
+4. **Define el formato de salida exacto** — para que el Nodo 4 pueda procesarlo de manera predecible
+
+**Parámetros de Gemini:**
+
+| Parámetro | Valor | Razón |
+|---|---|---|
+| `temperature` | 0.35 | Suficientemente creativo para anticipar tácticas, suficientemente estructurado para ser confiable |
+| `maxOutputTokens` | 8192 | El informe completo con los tres módulos requiere respuestas extensas |
+| `topP` | 0.85 | Buena diversidad sin perder coherencia jurídica |
+| `topK` | 40 | Estándar para tareas de análisis |
+
+---
+
+## 7. PRUEBA DEL FLUJO CON CURL
+
+Con el flujo activado, ejecutar en la terminal. Los textos de ejemplo son de un caso real de incumplimiento de promesa de compraventa:
+
+```bash
+curl -X POST http://localhost:5678/webhook/analisis-contraparte \
+  -H "Content-Type: application/json" \
+  -d '{
+    "expediente_id": "2024-CV-00123",
+    "rol_cliente": "demandante",
+    "demanda": "El señor Juan García demanda a Constructora XYZ S.A.S. por incumplimiento de contrato de compraventa de inmueble. Hechos: el 15 de enero de 2023 se suscribió promesa de compraventa sobre el apartamento 401 del edificio Los Pinos, con precio pactado de $400.000.000. La constructora recibió cuota inicial de $100.000.000 y se comprometió a entregar el inmueble el 15 de diciembre de 2023. A la fecha de presentación de la demanda, 15 de marzo de 2024, no ha entregado el inmueble ni devuelto las sumas pagadas. Pretensiones: primero, que se declare el incumplimiento del contrato por parte de la demandada; segundo, que se condene al cumplimiento forzado o subsidiariamente a la resolución del contrato; tercero, que se condene al pago de perjuicios materiales por $150.000.000 y perjuicios morales.",
+    "contestacion": "La Constructora XYZ se opone a la totalidad de las pretensiones. Propone excepción de contrato no cumplido (exceptio non adimpleti contractus): el demandante no pagó la segunda cuota de $50.000.000 pactada para el 15 de junio de 2023, incumplimiento que generó el retraso en la construcción por falta de flujo de caja. Adicionalmente propone excepción de fuerza mayor por lluvias excepcionales en el segundo semestre de 2023 que paralizaron la obra durante 60 días continuos. Afirma que el inmueble estará listo el 30 de junio de 2024 y que la constructora siempre ha estado dispuesta a cumplir.",
+    "descorre_excepciones": "El demandante descorre las excepciones: 1) Sí pagó la segunda cuota el 18 de junio de 2023 a las 9:00 a.m., adjunta comprobante bancario de transferencia electrónica. El plazo vencía a las 11:59 p.m. del 15 de junio, y si bien hubo un retraso de 3 días, la constructora recibió el pago sin protesta formal y continuó la obra. 2) La fuerza mayor no está acreditada: no existe declaratoria de calamidad pública ni certificación del IDEAM de lluvias excepcionales en la zona del proyecto. 3) El retraso ya supera 15 meses sin que exista fecha cierta de entrega, lo que configura incumplimiento definitivo.",
+    "otras_piezas": "Auto admisorio de la demanda del 5 de abril de 2024. Contestación presentada el 3 de mayo de 2024 dentro del término. Solicitud de llamamiento en garantía de la aseguradora Seguros del Estado S.A. por la póliza de cumplimiento suscrita por la constructora, presentada por la demandada el 20 de mayo de 2024."
+  }'
+```
+
+**Respuesta esperada (JSON):**
+
+```json
+{
+  "expediente_id": "2024-CV-00123",
+  "rol_cliente": "demandante",
+  "fecha_analisis": "2024-06-05T14:30:00.000Z",
+  "informe_completo": "# INFORME ESTRATÉGICO — ANTICIPACIÓN DE CONTRAPARTE\n...(texto completo del análisis)...",
+  "status": "completado"
+}
+```
+
+El tiempo de respuesta será de 20 a 40 segundos. Es normal.
+
+---
+
+## 8. FORMATO JSON DE ENTRADA ESPERADO
+
+| Campo | Tipo | Obligatorio | Descripción |
+|---|---|---|---|
+| `expediente_id` | string | Sí | Número o identificador del proceso judicial |
+| `rol_cliente` | string | Sí | `"demandante"` o `"demandado"` |
+| `demanda` | string | Sí | Texto completo de la demanda |
+| `contestacion` | string | Sí | Texto completo de la contestación de la demanda |
+| `descorre_excepciones` | string | No | Texto del descorre de excepciones (si existe) |
+| `otras_piezas` | string | No | Otras piezas procesales relevantes concatenadas |
+
+**Recomendación para PDFs:** Si los abogados trabajan con PDFs, convertirlos a texto antes de enviar al webhook usando herramientas como:
+- **Adobe Acrobat:** Exportar como texto
+- **En línea:** smallpdf.com → PDF a texto
+- **Código:** librería `pdf-parse` en Node.js o `PyPDF2` en Python
+- **n8n:** agregar un Nodo 1B de tipo "Extract from File" (operación "Text from PDF") entre el Webhook y el Nodo 2
+
+---
+
+## 9. EJEMPLO DE SALIDA
+
+El sistema devuelve un documento Markdown con esta estructura:
+
+```markdown
+# INFORME ESTRATÉGICO — ANTICIPACIÓN DE CONTRAPARTE
+**Expediente N°:** 2024-CV-00123
+**Rol de nuestro cliente:** demandante
+**Fecha de análisis:** miércoles, 5 de junio de 2024
+
+---
+
+# MÓDULO 1: TEORÍA DEL CASO Y LÍNEA ESTRATÉGICA DE LA CONTRAPARTE
+
+## 1.1 Narrativa de hechos de la contraparte
+La Constructora XYZ construye su relato sobre el incumplimiento previo
+del demandante: el comprador retrasó 3 días el pago de la segunda cuota
+y ese incumplimiento —no las decisiones de la constructora— es la causa
+eficiente del retraso en la obra. Su narrativa transforma al demandante
+en el primer incumplidor y a la constructora en la parte de buena fe...
+
+## 1.2 Hechos que necesitan probar para ganar
+1. Que el pago del 18 de junio fue tardío y constituyó incumplimiento material
+   (Prueba disponible: promesa de compraventa con fecha límite del 15 de junio)
+2. Que las lluvias del segundo semestre de 2023 configuraron fuerza mayor...
+
+[continúa con todos los módulos]
+```
+
+---
+
+## 10. SOLUCIÓN DE ERRORES COMUNES
+
+### "Cannot read properties of undefined (reading 'candidates')"
+
+**Causa:** Gemini devolvió un error en lugar de una respuesta válida, o la estructura de la respuesta cambió.
+
+**Solución:**
+1. Abrir el Nodo 3 en n8n y hacer clic en **"Execute Node"** manualmente
+2. Ver la respuesta completa de Gemini en la pestaña "Output"
+3. Si la respuesta tiene un campo `error`, leer el mensaje — generalmente indica API key inválida o cuota superada
+4. Verificar que `GEMINI_API_KEY` esté correctamente guardada en Settings → Variables
+
+---
+
+### "El expediente debe incluir al menos la demanda y la contestacion"
+
+**Causa:** El JSON enviado al webhook no tiene los campos `demanda` o `contestacion`, o están vacíos.
+
+**Solución:** Verificar que el JSON de entrada incluya ambos campos con texto real.
+
+---
+
+### "401 Unauthorized" en el HTTP Request
+
+**Causa:** La API key de Gemini es incorrecta o fue revocada.
+
+**Solución:**
+1. Ir a https://aistudio.google.com/app/apikey
+2. Verificar que la key esté activa (no eliminada)
+3. Crear una nueva key si es necesario
+4. Ir a n8n → Settings → Variables → actualizar `GEMINI_API_KEY`
+
+---
+
+### "429 Too Many Requests"
+
+**Causa:** Se superó el límite de solicitudes por minuto de Gemini.
+
+**Solución:**
+- Plan gratuito de Gemini: 2 solicitudes por minuto. Para una firma, activar un plan de pago en Google Cloud (generative language API) que sube el límite a 60+ solicitudes/minuto
+- Costo estimado: Gemini 1.5 Pro cuesta aproximadamente USD $3.50 por millón de tokens de entrada y USD $10.50 por millón de tokens de salida. Un expediente de 20 páginas con respuesta completa cuesta entre USD $0.05 y USD $0.15 por análisis
+
+---
+
+### La respuesta del webhook llega vacía (status 200 sin body)
+
+**Causa:** El Response Mode del Webhook no está en "Last Node".
+
+**Solución:**
+1. Abrir el Nodo 1 (Webhook)
+2. Verificar que **Response Mode** esté en `Last Node`
+3. Guardar y volver a activar el flujo
+
+---
+
+### El informe se corta a la mitad
+
+**Causa:** `maxOutputTokens` está configurado en un valor bajo.
+
+**Solución:** En el Nodo 3 (HTTP Request), verificar que el JSON del body tenga `"maxOutputTokens": 8192`. Si el valor está en 1024 o 2048, el informe quedará truncado.
+
+---
+
+### Error en el Nodo 4: "Cannot read properties of undefined (reading 'json')"
+
+**Causa:** La referencia `$('Ensamblar prompt único')` no encuentra el nodo porque el nombre es diferente.
+
+**Solución:** 
+1. Verificar el nombre exacto del Nodo 2 en el canvas (hacer doble clic en el nodo para ver su nombre)
+2. En el código del Nodo 4, actualizar la línea:
+   ```javascript
+   const expediente_id = $('Ensamblar prompt único').first().json.expediente_id;
+   ```
+   Reemplazando `'Ensamblar prompt único'` por el nombre exacto del Nodo 2.
+
+---
+
+## RESUMEN VISUAL DE CONEXIONES
+
+```
+Nodo 1 — "Entrada del expediente"   (Webhook, POST, Path: analisis-contraparte, Response Mode: Last Node)
+    ↓
+Nodo 2 — "Ensamblar prompt único"   (Code JS: construye contexto + prompt unificado)
+    ↓
+Nodo 3 — "Gemini — Análisis estratégico"  (HTTP Request POST a Gemini 1.5 Pro, temp 0.35, maxTokens 8192)
+    ↓
+Nodo 4 — "Estructurar informe"      (Code JS: extrae texto de Gemini, arma informe final)
+    ↓─────────────────────────┐
+    ↓                         ↓
+Nodo 5                     Nodo 6
+"Respuesta al cliente"     "Notificar al abogado"
+(Respond to Webhook)       (Send Email — paralelo)
+```
+
+Total: **5 nodos principales + 1 opcional de email = 6 nodos**
+Una sola llamada a Gemini. Un solo análisis coherente e integrado.
+
+---
+
+*Documento técnico para implementación en n8n localhost · Firma de litigios colombiana · v2.0*
